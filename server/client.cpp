@@ -25,7 +25,7 @@
       struct addrinfo *result = NULL,
               *ptr = NULL,
               hints;
-      const char *sendbuf = "GET / HTTP/1.1\r\n"
+      const char *sendbuf = "80|ARG_ESC|GET / HTTP/1.1\r\n" // Format is "{PORT}|ARG_ESC|{BODY}"
                             "User-Agent: Mozilla/5.0\r\n"
                             "Host: www.google.com\r\n"
                             "Accept-Language: en-us\r\n"

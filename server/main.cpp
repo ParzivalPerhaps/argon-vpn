@@ -62,6 +62,39 @@ string isolate_host_name (std::string str){
     return host_name;
 }
 
+int grab_argon_request_port(const string& str){
+    int f = str.find("|ARG_ESC|");
+
+    if (f == std::string::npos){
+        return -1;
+    }
+
+    string port_str = str.substr(0, f);
+
+    u_int64 v = port_str.find(' ');
+    while (v != std::string::npos){
+        port_str.replace(v, 1, "");
+
+        v = port_str.find(' ');
+    }
+
+    cout << stoi(port_str) << endl;
+
+    return stoi(port_str);
+}
+
+string remove_request_port(string str){
+    int f = str.find("|ARG_ESC|");
+
+    if (f == std::string::npos){
+        return str;
+    }
+
+    cout << str.substr(f + 9, str.length() - (f + 9)) << endl;
+
+    return str.substr(f + 9, str.length() - (f + 9));
+}
+
 int main() {
     //std::cout << "   __    ____   ___  _____  _  _ \n  /__\\  (  _ \\ / __)(  _  )( \\( )\n /(__)\\  )   /( (_-. )(_)(  )  ( \n(__)(__)(_)\\_) \\___/(_____)(_)\\_)\nStarting Server...";
 
@@ -189,7 +222,24 @@ int main() {
                 int find_target_host_res;
                 struct hostent *request_host;
 
-                string host_name = isolate_host_name(receive_buffer);
+                int request_port = grab_argon_request_port(receive_buffer);
+
+                if (request_port == -1){
+                    cout << "Failed to find argon port parameter";
+                    WSACleanup();
+                    return 1;
+                }
+
+                char body[DEFAULT_BUFFER_LENGTH];
+
+                string body_with_removed_argon_parameters = remove_request_port(receive_buffer);
+                strcpy(body, body_with_removed_argon_parameters.c_str());
+
+                char request_port_str[DEFAULT_BUFFER_LENGTH];
+
+                strcpy(request_port_str, to_string(request_port).c_str());
+
+                string host_name = isolate_host_name(body);
                 char* extracted_host_name = new char[host_name.length() + 1];
 
                 strcpy(extracted_host_name, host_name.c_str());
@@ -198,7 +248,8 @@ int main() {
 
                 cout << inet_ntoa (*((struct in_addr *) request_host->h_addr_list[0])) << endl;
 
-                find_target_host_res = getaddrinfo(inet_ntoa (*((struct in_addr *) request_host->h_addr_list[0])), "80", &pseudo_client_hints, &pseudo_client_lookup_res);
+
+                find_target_host_res = getaddrinfo(inet_ntoa (*((struct in_addr *) request_host->h_addr_list[0])), request_port_str, &pseudo_client_hints, &pseudo_client_lookup_res);
                 if ( find_target_host_res != 0 ) {
                     cout << "Unable to find requested endpoint, error: " << WSAGetLastError();
                     WSACleanup();
@@ -244,7 +295,7 @@ int main() {
 
                 // Pass data from client to intended endpoint
                 int proxy_data_to_endpoint_res;
-                proxy_data_to_endpoint_res = send( pseudo_client_socket, receive_buffer, (int)strlen(receive_buffer), 0 );
+                proxy_data_to_endpoint_res = send( pseudo_client_socket, body, (int)strlen(body), 0 );
 
                 if (proxy_data_to_endpoint_res == SOCKET_ERROR) {
                     cout << "Failed data proxy to intended endpoint with error: " << WSAGetLastError();
